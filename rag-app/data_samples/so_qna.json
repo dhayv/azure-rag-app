@@ -1,0 +1,23 @@
+[
+    {
+      "question": "I am trying to setup ArgoCD for gitops. I used the ArgoCD helm chart to deploy it to my local Docker Desktop Kubernetes cluster. I am trying to use the app of apps pattern for ArgoCD. The problem is that when I apply the yaml to create the root app, nothing happens. Here is the yaml (created by the command helm template apps/ -n argocd from the my public repo https://github.com/gajewa/gitops): The resource is created but nothing in Argo UI actually happened. No application is visible. So I tried to create the app via the Web UI, even pasting the yaml in there. The application is created in the web ui and it seems to synchronise and see the repo with the yaml templates of prometheus and argo but it doesn't actually create the prometheus application in ArgoCD. And the prometheus part of the root app is forever progressing.",
+      "answer": "The problem is you have to use the below code in your manifest file in metadata. Just please change the namespace with the name your ArgoCD was deployed in. Default is 'argocd'."
+    },
+    {
+      "question": "Firstly this is in the context of a mono-repo application that runs inside Kubernetes.\n\nIn GitOps my understanding is everything is declarative and written in configuration files such as YAML. This allows a full change history within git. Branches represent environments. For example:\n\nBRANCH develop Could be a deployed QA or staging environment\nBRANCH feature/foo-bar Could be a deployed feature branch for assessment\nTAG v1.2.0 Could be latest version running in production This makes sense to me, any and all branches can be deployed as a running version of the application.\n\nQUESTION I remember reading ... somewhere ... configuration should live outside of the main repository, inside another \"configuration repository\". From memory the idea is an application should not know a particular configuration... only how to use a configuration?\n\nIs this true? Should I have an application repo and an application configuration repo? e.g.\n\napp repo: foo-organisation/bar-application\nconfig repo: foo-organisation/bar-application-config\nWhere the branching model of config for different environments lives inside that repository? Why and what are the advantages?\n\nOtherwise should it just live inside a directory of the app repo?",
+      "answer": "There's no real hard rule other than everything about your environment should be represented in a git repo (e.g. stop storing config in Jenkins env variables, Steve!). Where the config lives is more of an implementation detail.\n\nIf your app is managed as a mono repo then why not use the same setup for the deployment? It's usually best to fit in with your existing release processes rather than creating something new.\n\nOne catch is that a single version of the app will normally need to support multiple deployments and the deployment config can often change after an app has been built and released. So there needs to be a 1 'app' to many 'config' relationship. Whether that is implemented with files, directories, branches, or repos — they can all work, as long as they are versioned and released.\n\nAnother release consideration is application builds. For small deployment updates, you don't want to build and release a complete new application image. It's preferable to just apply the config and reuse the existing artifacts. This is often a driver for the separate deploy/config repo, so concerns are completely separated.\n\nSecurity can play a part. You may have system information in the deployment config that all developers don't need access to — or you don't want to even have the chance of it making it into a container image. This also drives the use of separate repos.\n\nSize of infrastructure is another. If I'm managing multiple apps, the generic deployment config will not be stored in a single app's repo."
+    },
+    {
+      "question": "ArgoCD tracking subdirectories in a specified path. I'm using ArgoCD and I want to track files under different subdirectories. I've set the path as ./root_directory, but I would like to track also files in the subdirectories of root_directory. For instance /root_directory/dir1, /root_directory/dir2, but also /root_directory/dir1/dir1.1 etc.. How can I do that?",
+      "answer": "You can add the spec.source.directory.recurse attribute."
+    },
+    {
+      "question": "How to connect Azure OpenAI with LangChain?",
+      "answer": "You can use the AzureOpenAI wrapper from langchain.chat_models."
+    },
+    {
+      "question": "What is vectorstore retriever?",
+      "answer": "It's a component that fetches relevant docs from a vector DB based on query similarity."
+    }
+  ]
+  
