@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from azure.identity import AzureAuthorityHosts
 
 app = FastAPI(
     title="RAG AI App",
@@ -24,6 +25,11 @@ async def api_status():
         "version": "1.0.0",
         "service": "rag-ai-backend"
     }
+
+search_endpoint: str = "https://<Put your search service NAME here>.search.windows.net/"
+
+
+index_name: str = "hotels-quickstart-python"
 
 
 if __name__ == "__main__":
