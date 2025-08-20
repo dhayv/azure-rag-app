@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import yaml
-from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient
 from dotenv import load_dotenv
 from openai import AzureOpenAI
@@ -16,12 +16,12 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 DATA_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "data_samples", "stack_overflow")
 )
-INDEX_NAME = os.environ["SEARCH_INDEX"]
+INDEX_NAME = os.environ["AZURE_SEARCH_INDEX"]
 
 SEARCH_CLIENT = SearchClient(
     endpoint=os.environ["AZURE_SEARCH_ENDPOINT"],
     index_name=os.getenv("AZURE_SEARCH_INDEX", "vector-search-quickstart"),
-    credential=DefaultAzureCredential(),
+    credential=AzureKeyCredential(os.environ["AZURE_SEARCH_API_KEY"]),
 )
 
 client = AzureOpenAI(
