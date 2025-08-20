@@ -1,10 +1,14 @@
+import os
+from dotenv import load_dotenv
 from fastapi import FastAPI
-from azure.identity import AzureAuthorityHosts
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(
     title="RAG AI App",
     description="Retrieval-Augmented Generation AI Application",
-    version="1.0.0"
+    version="1.0.0",
 )
 
 
@@ -20,18 +24,14 @@ async def health_check():
 
 @app.get("/api/v1/status")
 async def api_status():
-    return {
-        "status": "operational",
-        "version": "1.0.0",
-        "service": "rag-ai-backend"
-    }
-
-search_endpoint: str = "https://<Put your search service NAME here>.search.windows.net/"
+    return {"status": "operational", "version": "1.0.0", "service": "rag-ai-backend"}
 
 
-index_name: str = "hotels-quickstart-python"
+search_endpoint: str = os.getenv("AZURE_SEARCH_ENDPOINT", "https://<Put your search service NAME here>.search.windows.net/")
+index_name: str = os.getenv("AZURE_SEARCH_INDEX", "vector-search-quickstart")
 
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="0.0.0.0", port=8000)
