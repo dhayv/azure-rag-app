@@ -9,50 +9,48 @@ def test_imports():
     try:
         # Test Azure Core imports
         from azure.core.credentials import AzureKeyCredential
+
         print("✅ azure.core.credentials imported successfully")
-        
+
         # Test Azure Identity imports
-        from azure.identity import DefaultAzureCredential, AzureAuthorityHosts
+        from azure.identity import AzureAuthorityHosts, DefaultAzureCredential
+
         print("✅ azure.identity imported successfully")
-        
+
         # Test Azure Search imports
         from azure.search.documents.indexes import SearchIndexClient
         from azure.search.documents.indexes.models import (
-            SimpleField,
-            ComplexField,
-            SearchField,
-            SearchFieldDataType,    
-            SearchableField,
-            SearchIndex,
-            SemanticConfiguration,
-            SemanticField,
-            SemanticPrioritizedFields,
-            SemanticSearch,
-            VectorSearch, 
-            VectorSearchProfile,
-            HnswAlgorithmConfiguration,
-            ExhaustiveKnnAlgorithmConfiguration    
-        )
+            ComplexField, ExhaustiveKnnAlgorithmConfiguration,
+            HnswAlgorithmConfiguration, SearchableField, SearchField,
+            SearchFieldDataType, SearchIndex, SemanticConfiguration,
+            SemanticField, SemanticPrioritizedFields, SemanticSearch,
+            SimpleField, VectorSearch, VectorSearchProfile)
+
         print("✅ azure.search.documents.indexes imported successfully")
-        
+
         # Test dotenv import
         from dotenv import load_dotenv
+
         print("✅ python-dotenv imported successfully")
         load_dotenv()  # Test the function
-        
+
         # Test FastAPI imports
         from fastapi import FastAPI
+
         print("✅ FastAPI imported successfully")
-        
+
         # Test uvicorn import
         import uvicorn
+
         print("✅ uvicorn imported successfully")
-        
+
         # Use the imports to verify they work
         _ = AzureKeyCredential("test")
         _ = DefaultAzureCredential()
         _ = AzureAuthorityHosts.AZURE_PUBLIC_CLOUD
-        _ = SearchIndexClient(endpoint="https://test.search.windows.net/", credential="test")
+        _ = SearchIndexClient(
+            endpoint="https://test.search.windows.net/", credential="test"
+        )
         _ = SimpleField(name="test", type=SearchFieldDataType.String)
         _ = ComplexField(name="test", fields=[])
         _ = SearchField(name="test", type=SearchFieldDataType.String)
@@ -68,10 +66,10 @@ def test_imports():
         _ = ExhaustiveKnnAlgorithmConfiguration(name="test", kind="exhaustiveKnn")
         _ = FastAPI()
         _ = uvicorn.__version__
-        
+
         print("\n🎉 All imports successful! Your environment is properly configured.")
         return True
-        
+
     except ImportError as e:
         print(f"❌ Import error: {e}")
         return False
