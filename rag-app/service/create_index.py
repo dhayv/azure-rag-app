@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AzureKeyCredential
 from azure.search.documents.indexes import SearchIndexClient
 from azure.search.documents.indexes.models import (
     HnswAlgorithmConfiguration,
@@ -19,9 +19,10 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 search_endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
-credential = DefaultAzureCredential()
+credential = AzureKeyCredential(os.environ["AZURE_SEARCH_API_KEY"])
 index_name = os.getenv("AZURE_SEARCH_INDEX", "vector-search-quickstart")
-
+algorithm_name = os.getenv("INDEX_ALGORITHM_NAME")
+profile_name = os.getenv("INDEX_PROFILE_NAME")
 # credential defaults to DefaultAzureCredential above
 
 # Create a search schema
@@ -114,7 +115,7 @@ fields = [
 vector_search = VectorSearch(
     algorithms=[
         HnswAlgorithmConfiguration(
-            name="hnsw",
+            name=algorithm_name,
             kind="hnsw",
             parameters={
                 "m": 4,
@@ -124,7 +125,7 @@ vector_search = VectorSearch(
             },
         ),
     ],
-    profiles=[VectorSearchProfile(name="SO_QA", algorithm_configuration_name="hnsw")],
+    profiles=[VectorSearchProfile(name=profile_name, algorithm_configuration_name=algorithm_name)],
 )
 
 
@@ -136,4 +137,3 @@ index = SearchIndex(
 )
 result = index_client.create_or_update_index(index)
 print(f"Index '{index_name}' created with vector field dims=1536.")
-
