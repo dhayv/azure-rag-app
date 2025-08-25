@@ -20,12 +20,9 @@ load_dotenv(Path(__file__).parent.parent / ".env", override=True)
 
 search_endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
 credential = AzureKeyCredential(os.environ["AZURE_SEARCH_API_KEY"])
-index_name = os.getenv("AZURE_SEARCH_INDEX", "vector-search-quickstart")
-algorithm_name = os.getenv("INDEX_ALGORITHM_NAME")
-profile_name = os.getenv("INDEX_PROFILE_NAME")
-# credential defaults to DefaultAzureCredential above
+index_name = os.getenv("AZURE_SEARCH_INDEX", "threads-index")
 
-# Create a search schema
+
 index_client = SearchIndexClient(endpoint=search_endpoint, credential=credential)
 fields = [
     SimpleField(
@@ -63,7 +60,7 @@ fields = [
     ),
     SimpleField(
         name="topics",
-        type=SearchFieldDataType.String,
+        type=SearchFieldDataType.Collection(SearchFieldDataType.String),
         sortable=False,
         filterable=True,
         facetable=True,
@@ -108,14 +105,14 @@ fields = [
         type=SearchFieldDataType.Collection(SearchFieldDataType.Single),
         searchable=True,  # must be True for vector fields
         vector_search_dimensions=1536,
-        vector_search_profile_name="SO_QA",
+        vector_search_profile_name="vdb",
     ),
 ]
 
 vector_search = VectorSearch(
     algorithms=[
         HnswAlgorithmConfiguration(
-            name=algorithm_name,
+            name="hnsw-config",
             kind="hnsw",
             parameters={
                 "m": 4,
@@ -125,11 +122,10 @@ vector_search = VectorSearch(
             },
         ),
     ],
-    profiles=[VectorSearchProfile(name=profile_name, algorithm_configuration_name=algorithm_name)],
+    profiles=[VectorSearchProfile(name="vdb", algorithm_configuration_name="hnsw-config")],
 )
 
 
-# Create the search index
 index = SearchIndex(
     name=index_name,
     fields=fields,
