@@ -1,0 +1,21 @@
+{
+    "folders": [
+        {
+            "name": "RAG App",
+            "path": "."
+        },
+        {
+            "name": "RAG Infra",
+            "path": "./infra"
+        }
+    ],
+    "settings": {
+        "files.exclude": {
+            "**/node_modules": true,
+            "**/.git": true,
+            "**/.venv": true,
+            "**/__pycache__": true
+        },
+        "python.defaultInterpreterPath": "./rag-app/service/.venv/bin/python"
+    }
+}
