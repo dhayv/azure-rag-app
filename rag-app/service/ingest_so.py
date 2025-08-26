@@ -89,9 +89,9 @@ def to_docs(path: str) -> List[Dict[str, Any]]:
     assert meta.get("source") and meta.get(
         "title"
     ), f"Missing required front-matter in {path}"
-    assert "
+    assert "# RAW_THREAD" in body or len(body) > 300, f"Body looks too short in {path}"
 
-    body = re.sub(r"^
+    body = re.sub(r"^# RAW_THREAD\s*\n", "", body.strip())
 
     chunks = chunk_preserve_code(body)
     slug = slug_from_path(path)
