@@ -4,6 +4,7 @@ import json
 import os
 import re
 import time
+from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -13,6 +14,23 @@ from azure.search.documents import SearchClient
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 from tqdm import tqdm
+
+
+# Global request throttle state
+request_timestamps = deque()
+
+
+def throttle_requests(max_rpm=60):
+    now = time.time()
+    window_start = now - 60
+    while request_timestamps and request_timestamps[0] < window_start:
+        request_timestamps.popleft()
+    if len(request_timestamps) >= max_rpm:
+        wait_time = 60 - (now - request_timestamps[0])
+        # print(f"Throttling to stay within {max_rpm} RPM. Sleeping {wait_time:.2f}s")
+        time.sleep(wait_time)
+    request_timestamps.append(time.time())
+
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -25,13 +43,13 @@ CACHE_FILE = Path(__file__).parent / "embeddings_cache.json"
 
 SEARCH_CLIENT = SearchClient(
     endpoint=os.environ["AZURE_SEARCH_ENDPOINT"],
-    index_name=os.getenv("AZURE_SEARCH_INDEX", "threads-index"),
+    index_name=INDEX_NAME,
     credential=AzureKeyCredential(os.environ["AZURE_SEARCH_API_KEY"]),
 )
 
 client = AzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-    api_version="2024-10-21",
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
     azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
 )
 
@@ -90,19 +108,27 @@ def chunk_preserve_code(text: str, max_len: int = 1600, overlap: int = 200) -> L
     return parts
 
 
-def embed_with_retry(texts: List[str], max_retries: int = 3, delay: float = 2.0) -> List[List[float]]:
-    for attempt in range(max_retries):
-        try:
-            resp = client.embeddings.create(input=texts, model=DEPLOYMENT_NAME)
-            return [d.embedding for d in resp.data]
-        except Exception as e:
-            if "429" in str(e) and attempt < max_retries - 1:
-                wait_time = delay * (2 ** attempt)  # Exponential backoff
-                print(f"Rate limited. Waiting {wait_time}s before retry {attempt + 1}/{max_retries}")
-                time.sleep(wait_time)
-                continue
-            else:
-                raise e
+def embed_with_retry_batch(texts: List[str], batch_size: int = 16, max_retries: int = 5, base_delay: float = 1.0) -> List[List[float]]:
+    out = []
+    for i in range(0, len(texts), batch_size):
+        chunk = texts[i:i + batch_size]
+        attempt = 0
+        while True:
+            try:
+                throttle_requests()  # NEW: global RPM limiter
+                resp = client.embeddings.create(input=chunk, model=DEPLOYMENT_NAME)
+                out.extend([d.embedding for d in resp.data])
+                break
+            except Exception as e:
+                attempt += 1
+                if "429" in str(e) and attempt < max_retries:
+                    wait_time = min(base_delay * (2 ** (attempt - 1)), 15)  # capped exponential backoff
+                    print(f"Rate limited. Waiting {wait_time}s before retry {attempt}/{max_retries}")
+                    time.sleep(wait_time)
+                else:
+                    raise e
+        time.sleep(0.1)  # Small delay between batches
+    return out
 
 
 def get_embeddings_with_cache(texts: List[str], cache: Dict[str, List[float]]) -> List[List[float]]:
@@ -119,8 +145,7 @@ def get_embeddings_with_cache(texts: List[str], cache: Dict[str, List[float]]) -
             text_indices.append(i)
     
     if texts_to_embed:
-        print(f"Computing embeddings for {len(texts_to_embed)} new chunks...")
-        new_embeddings = embed_with_retry(texts_to_embed)
+        new_embeddings = embed_with_retry_batch(texts_to_embed)
         
         for i, (text, embedding) in enumerate(zip(texts_to_embed, new_embeddings)):
             text_hash = hash_text(text)
@@ -133,7 +158,7 @@ def get_embeddings_with_cache(texts: List[str], cache: Dict[str, List[float]]) -
 
 
 def make_doc_id(slug: str, idx: int) -> str:
-    return f"{slug}::chunk{idx}"
+    return f"{slug}-chunk{idx}"
 
 
 def slug_from_path(p: str) -> str:
@@ -154,6 +179,7 @@ def to_docs(path: str, cache: Dict[str, List[float]]) -> List[Dict[str, Any]]:
     body = re.sub(r"^# RAW_THREAD\s*\n", "", body.strip())
 
     chunks = chunk_preserve_code(body)
+    print(f"{path} → {len(chunks)} chunks")
     slug = slug_from_path(path)
 
     vectors = get_embeddings_with_cache(chunks, cache)
@@ -167,7 +193,7 @@ def to_docs(path: str, cache: Dict[str, List[float]]) -> List[Dict[str, Any]]:
                 "contentVector": vec,
                 "source": meta.get("source", ""),
                 "title": meta.get("title", ""),
-                "topics": meta.get("topic", []),
+                "topics": meta.get("topics") or meta.get("topic") or [],
                 "captured_at": meta.get("captured_at", ""),
                 "license": meta.get("license", ""),
                 "attribution": meta.get("attribution", ""),
@@ -187,7 +213,6 @@ def upload_batch(docs: List[Dict[str, Any]]) -> None:
 
 def main() -> None:
     cache = load_cache()
-    print(f"Loaded cache with {len(cache)} cached embeddings")
     
     paths = iter_md_files()
     print(f"Found {len(paths)} .md files under {DATA_ROOT}")
@@ -204,7 +229,6 @@ def main() -> None:
             continue
     
     save_cache(cache)
-    print(f"Saved cache with {len(cache)} embeddings")
     print(f"Uploaded {total_docs} chunks to index '{INDEX_NAME}'")
 
 
