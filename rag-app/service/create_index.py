@@ -12,6 +12,13 @@ from azure.search.documents.indexes.models import (
     VectorSearch,
     VectorSearchAlgorithmMetric,
     VectorSearchProfile,
+    SemanticConfiguration,
+    SemanticPrioritizedFields,
+    SemanticField,
+    SemanticSearch,
+    ScoringProfile,
+    TagScoringFunction,
+    TagScoringParameters
 )
 from dotenv import load_dotenv
 
@@ -125,11 +132,41 @@ vector_search = VectorSearch(
     profiles=[VectorSearchProfile(name="vdb", algorithm_configuration_name="hnsw-config")],
 )
 
+semantic_config = SemanticConfiguration(
+    name="my-semantic-config",
+    prioritized_fields=SemanticPrioritizedFields(
+        title_field=SemanticField(field_name="title"),
+        keywords_fields=[SemanticField(field_name="topics")],
+        content_fields=[SemanticField(field_name="content")]
+    )
+)
+
+
+semantic_search = SemanticSearch(configurations=[semantic_config])
+
+
+scoring_profiles = [
+    ScoringProfile(  
+        name="my-scoring-profile",
+        functions=[
+            TagScoringFunction(
+                field_name="topics",
+                boost=5.0,
+                parameters=TagScoringParameters(
+                    tags_parameter="tags",
+                ),
+            )
+        ]
+    )
+]
+
 
 index = SearchIndex(
     name=index_name,
     fields=fields,
     vector_search=vector_search,
+    semantic_search=semantic_search,
+    scoring_profiles=scoring_profiles
 )
 result = index_client.create_or_update_index(index)
-print(f"Index '{index_name}' created with vector field dims=1536.")
+print(f"Index '{index_name}' updated")
