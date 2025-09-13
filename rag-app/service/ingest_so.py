@@ -7,13 +7,16 @@ import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+import tiktoken
 
 import yaml
 from azure.core.credentials import AzureKeyCredential
+from azure.core.pipeline.policies import RetryPolicy
 from azure.search.documents import SearchClient
 from dotenv import load_dotenv
 from openai import AzureOpenAI
 from tqdm import tqdm
+from tenacity import retry, wait_exponential, stop_after_attempt
 
 
 # Global request throttle state
@@ -41,12 +44,22 @@ INDEX_NAME = os.environ["AZURE_SEARCH_INDEX"]
 DEPLOYMENT_NAME = os.environ["AZURE_OPENAI_EMBED_DEPLOYMENT"]
 CACHE_FILE = Path(__file__).parent / "embeddings_cache.json"
 
+# Configure retry policy for Azure Search
+search_retry_policy = RetryPolicy(
+    retry_total=3,
+    retry_backoff_factor=1.0,
+    retry_backoff_max=60,
+    retry_on_status_codes=[429, 503, 504]
+)
+
 SEARCH_CLIENT = SearchClient(
     endpoint=os.environ["AZURE_SEARCH_ENDPOINT"],
     index_name=INDEX_NAME,
     credential=AzureKeyCredential(os.environ["AZURE_SEARCH_API_KEY"]),
+    retry_policy=search_retry_policy
 )
 
+# No retry policy for OpenAI client - we'll use Tenacity instead
 client = AzureOpenAI(
     api_key=os.getenv("AZURE_OPENAI_API_KEY"),
     api_version=os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21"),
@@ -89,44 +102,54 @@ def parse_front_matter(text: str) -> Tuple[Dict[str, Any], str]:
     return meta, body
 
 
-def chunk_preserve_code(text: str, max_len: int = 1600, overlap: int = 200) -> List[str]:
-    parts: List[str] = []
+def chunk_preserve_code_tokens(text: str, max_tokens: int = 300, overlap: int = 50, model="gpt-35-turbo"):
+    """
+    Split text into chunks capped at max_tokens using tiktoken.
+    Preserves code blocks as atomic units (never split inside ```...```).
+    """
+    enc = tiktoken.encoding_for_model(model)
+    parts = []
+    buffer_tokens = []
+
+    # Split text into alternating text + code block segments
     segments = re.split(r"(```.*?```)", text, flags=re.DOTALL)
-    buf = ""
+
     for seg in segments:
-        if len(buf) + len(seg) <= max_len:
-            buf += seg
+        seg_tokens = enc.encode(seg)
+        # If adding this segment would overflow max_tokens, flush buffer
+        if len(buffer_tokens) + len(seg_tokens) > max_tokens:
+            if buffer_tokens:
+                parts.append(enc.decode(buffer_tokens))
+            # Start new buffer, keep some overlap
+            buffer_tokens = buffer_tokens[-overlap:] + seg_tokens
+            # If still too long (e.g. single giant code block), force split
+            while len(buffer_tokens) > max_tokens:
+                parts.append(enc.decode(buffer_tokens[:max_tokens]))
+                buffer_tokens = buffer_tokens[max_tokens - overlap:]
         else:
-            if buf.strip():
-                parts.append(buf.strip())
-            buf = (buf[-overlap:] if overlap and len(buf) > overlap else "") + seg
-            while len(buf) > max_len:
-                parts.append(buf[:max_len].strip())
-                buf = buf[max_len - overlap:]
-    if buf.strip():
-        parts.append(buf.strip())
-    return parts
+            buffer_tokens.extend(seg_tokens)
+
+    if buffer_tokens:
+        parts.append(enc.decode(buffer_tokens))
+
+    return [p.strip() for p in parts if p.strip()]
 
 
-def embed_with_retry_batch(texts: List[str], batch_size: int = 16, max_retries: int = 5, base_delay: float = 1.0) -> List[List[float]]:
+@retry(wait=wait_exponential(multiplier=1, min=2, max=15), stop=stop_after_attempt(5))
+def embed_batch_with_tenacity(texts: List[str]) -> List[List[float]]:
+    """Use Tenacity for retry logic on OpenAI embeddings"""
+    throttle_requests()  # Apply throttling before each attempt
+    resp = client.embeddings.create(input=texts, model=DEPLOYMENT_NAME)
+    return [d.embedding for d in resp.data]
+
+
+def embed_with_retry_batch(texts: List[str], batch_size: int = 2) -> List[List[float]]:
+    """Process texts in batches with Tenacity retry logic"""
     out = []
     for i in range(0, len(texts), batch_size):
         chunk = texts[i:i + batch_size]
-        attempt = 0
-        while True:
-            try:
-                throttle_requests()  # NEW: global RPM limiter
-                resp = client.embeddings.create(input=chunk, model=DEPLOYMENT_NAME)
-                out.extend([d.embedding for d in resp.data])
-                break
-            except Exception as e:
-                attempt += 1
-                if "429" in str(e) and attempt < max_retries:
-                    wait_time = min(base_delay * (2 ** (attempt - 1)), 15)  # capped exponential backoff
-                    print(f"Rate limited. Waiting {wait_time}s before retry {attempt}/{max_retries}")
-                    time.sleep(wait_time)
-                else:
-                    raise e
+        embeddings = embed_batch_with_tenacity(chunk)
+        out.extend(embeddings)
         time.sleep(0.1)  # Small delay between batches
     return out
 
@@ -178,7 +201,7 @@ def to_docs(path: str, cache: Dict[str, List[float]]) -> List[Dict[str, Any]]:
 
     body = re.sub(r"^# RAW_THREAD\s*\n", "", body.strip())
 
-    chunks = chunk_preserve_code(body)
+    chunks = chunk_preserve_code_tokens(body, max_tokens=300, overlap=50)
     print(f"{path} → {len(chunks)} chunks")
     slug = slug_from_path(path)
 
@@ -223,7 +246,7 @@ def main() -> None:
             docs = to_docs(p, cache)
             upload_batch(docs)
             total_docs += len(docs)
-            time.sleep(1)  # Rate limiting between files
+            time.sleep(5)  # Rate limiting between files
         except Exception as e:
             print(f"Error processing {p}: {e}")
             continue
