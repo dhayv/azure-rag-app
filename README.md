@@ -1,249 +1,74 @@
-# Azure RAG AI Application
+# Azure RAG AI Application – Workload Layer
 
-A production-ready Retrieval-Augmented Generation (RAG) application built with FastAPI, Azure OpenAI, and Azure AI Search. This project demonstrates how to build a scalable RAG system using Azure services with proper GitOps practices and infrastructure separation.
+**Azure | FastAPI | OpenAI | AI Search | Vector Database | GitOps | Platform Architecture**
 
-## 🏗️ Architecture
+This repository governs the **workload layer** of the Azure RAG Platform.  
+It delivers a **repeatable workload pattern** for Retrieval-Augmented Generation (RAG) services — engineered for production scale with FastAPI, Azure OpenAI, and Azure AI Search.  
 
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   FastAPI App   │    │  Azure OpenAI    │    │ Azure AI Search │
-│                 │    │                  │    │                 │
-│ • Health APIs   │───▶│ • Embeddings     │───▶│ • Vector Store  │
-│ • Query Endpoint│    │ • Text Generation│    │ • Semantic Search│
-│ • Admin APIs    │    │                  │    │ • Index Mgmt    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
+The service is architected for **resilience and governance**: retries, caching, rate limits, and guardrails are built in by design.  
+Application logic is fully separated from infrastructure governance, ensuring workloads remain modular and platform-ready under GitOps control.  
 
-## 🚀 Features
+> A governed workload pattern — resilient, modular, and architected for multi-service scale.
 
-- **FastAPI Backend**: Modern, fast web framework with automatic API documentation
-- **Azure OpenAI Integration**: Text embeddings and chat completions
-- **Azure AI Search**: Vector storage and semantic search capabilities
-- **Data Ingestion Pipeline**: Automated processing of Stack Overflow Q&A data
-- **Caching & Rate Limiting**: Production-grade API management
-- **GitOps Workflow**: Infrastructure and application code separation
-- **Modern Python Tooling**: `uv` package manager, `ruff` linting, type hints
-
-## 📁 Project Structure
-
-```
-azure-rag-app/
-├── rag-app/                          # Main application
-│   ├── service/                      # FastAPI backend
-│   │   ├── main.py                   # FastAPI application
-│   │   ├── ingest_so.py              # Data ingestion pipeline
-│   │   ├── quick_query.py            # Query testing script
-│   │   ├── create_index.py           # Search index creation
-│   │   ├── pyproject.toml            # Dependencies & config
-│   │   └── embeddings_cache.json     # Embedding cache
-│   ├── data_samples/                 # Sample data
-│   │   └── stack_overflow/           # Stack Overflow Q&A files
-│   └── .env                          # Environment variables
-├── infra/                            # Infrastructure repository
-│   └── create_index.py               # Index management script
-└── rag-workspace.code-workspace      # VS Code multi-root workspace
-```
-
-## 🛠️ Prerequisites
-
-- **Python 3.11+**
-- **Azure Account** with:
-  - Azure OpenAI Service
-  - Azure AI Search Service
-- **Git** for version control
-- **VS Code** (recommended) with Python extension
-
-## ⚙️ Setup
-
-### 1. Clone and Setup Environment
-
-```bash
-# Clone the repository
-git clone <your-repo-url>
-cd azure-rag-app
-
-# Install uv package manager (if not already installed)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Navigate to service directory
-cd rag-app/service
-
-# Install dependencies
-uv sync
-```
-
-### 2. Configure Azure Services
-
-Create a `.env` file in `rag-app/` with your Azure credentials:
-
-```bash
-# Azure Cognitive Search Configuration
-AZURE_SEARCH_ENDPOINT="https://your-search-service.search.windows.net"
-AZURE_SEARCH_INDEX="threads-index"
-AZURE_SEARCH_API_KEY="your-search-api-key"
-
-# Azure OpenAI Configuration
-AZURE_OPENAI_API_KEY="your-openai-api-key"
-AZURE_OPENAI_ENDPOINT="https://your-openai-resource.openai.azure.com/"
-AZURE_OPENAI_API_VERSION="2024-10-21"
-AZURE_OPENAI_EMBED_DEPLOYMENT="embeddings"
-
-# Index Configuration (from Azure Portal)
-ALGORITHM_NAME="your-algorithm-name"
-INDEX_PROFILE_NAME="your-profile-name"
-```
-
-### 3. Create Search Index
-
-```bash
-# Create the Azure AI Search index
-uv run python create_index.py
-```
-
-### 4. Ingest Data
-
-```bash
-# Process and upload Stack Overflow data
-uv run python ingest_so.py
-```
-
-## 🚀 Usage
-
-### Start the FastAPI Server
-
-```bash
-# Development server with auto-reload
-uv run uvicorn main:app --reload --host 0.0.0.0 --port 8000
-
-# Or use the provided script
-./run.sh
-```
-
-### Test the Application
-
-```bash
-# Health check
-curl http://localhost:8000/health
-
-# API status
-curl http://localhost:8000/api/v1/status
-```
-
-### Query the RAG System
-
-```bash
-# Test vector search
-uv run python quick_query.py
-```
-
-## 📊 Data Pipeline
-
-The ingestion pipeline (`ingest_so.py`) processes Stack Overflow Q&A data with:
-
-- **Front-matter Parsing**: Extracts metadata from YAML headers
-- **Code-aware Chunking**: Preserves code blocks during text splitting
-- **Embedding Generation**: Creates vector embeddings using Azure OpenAI
-- **Caching**: Stores embeddings to avoid recomputation
-- **Rate Limiting**: Respects API limits (60 requests/minute)
-- **Batch Processing**: Efficient handling of multiple documents
-
-## 🔧 Development
-
-### Code Quality
-
-```bash
-# Run linter with auto-fix
-./ruff.sh
-
-# Type checking
-uv run mypy .
-```
-
-### Jupyter Notebooks
-
-```bash
-# Start Jupyter server
-uv run jupyter notebook
-```
-
-### Git Workflow
-
-This project follows GitOps principles:
-
-- **Application Code**: Lives in `rag-app/`
-- **Infrastructure Code**: Lives in `infra/` (separate repository)
-- **Atomic Commits**: One commit per logical change
-- **Meaningful Messages**: Clear, descriptive commit messages
-
-## 🌐 API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/` | GET | Root endpoint |
-| `/health` | GET | Health check |
-| `/api/v1/status` | GET | API status |
-| `/docs` | GET | Interactive API documentation |
-
-## 🔒 Security
-
-- Environment variables for sensitive data
-- `.env` files excluded from version control
-- Azure Key Credentials for service authentication
-- Rate limiting to prevent API abuse
-
-## 📈 Performance Features
-
-- **Embedding Caching**: Avoids redundant API calls
-- **Batch Processing**: Efficient bulk operations
-- **Rate Limiting**: Respects Azure API limits
-- **Exponential Backoff**: Robust error handling
-- **Vector Search**: Fast similarity matching
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Rate Limiting**: The ingestion script includes built-in rate limiting
-2. **Missing Environment Variables**: Ensure all required variables are set in `.env`
-3. **Index Not Found**: Run `create_index.py` before ingestion
-4. **Import Errors**: Run `uv sync` to install dependencies
-
-### Debug Mode
-
-```bash
-# Test imports without connecting to Azure
-uv run python test_imports.py
-```
-
-## 📚 Dependencies
-
-Key dependencies managed by `uv`:
-
-- **FastAPI**: Web framework
-- **Azure SDKs**: `azure-core`, `azure-identity`, `azure-search-documents`
-- **OpenAI**: `openai` for Azure OpenAI integration
-- **Data Processing**: `pandas`, `numpy`, `scikit-learn`
-- **Utilities**: `python-dotenv`, `pyyaml`, `tqdm`
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
-
-## 🙏 Acknowledgments
-
-- Stack Overflow community for the Q&A data
-- Azure team for excellent AI services
-- FastAPI team for the amazing framework
-- The open-source Python community
+🔗 **System Architecture** → This repository owns the **application layer**.  
+The companion repo [rag-infra](https://github.com/dhayv/rag-infra) governs the **delivery control layer**.  
+Together, they define the Azure RAG Platform — a unified, declarative architecture for AI workloads in AKS.  
 
 ---
 
-**Built with ❤️ using Azure AI Services and FastAPI**
+## 🏗️ Architecture Overview
+
+- **Service Layer** → FastAPI application exposing query, health, and admin endpoints.  
+- **Embedding Module** → Generates vector embeddings using Azure OpenAI.  
+- **Vector Store Module** → Azure AI Search indexes and executes similarity queries.  
+- **Guardrail Layer** → Enforces factual grounding, explicit citations, structured summarization, and controlled fallbacks.  
+- **Separation of Concerns** → This repo owns workload logic; [rag-infra] governs deployment and delivery.  
+
+---
+
+## 🚀 Core Capabilities
+
+- **Production-Grade RAG Workload**  
+  Orchestrates embeddings, vector search, and completions through modular service classes designed for scale.  
+
+- **Explicit Separation of Concerns**  
+  - Runtime logic (FastAPI, RAGService class).  
+  - Data pipeline (ingestion, indexing, caching).  
+  - Guardrails (prompt template, retries, token trimming).  
+  - Delivery governance fully delegated to [rag-infra].  
+
+- **Guardrails by Design**  
+  - Grounded prompts enforce source fidelity and factual answers.  
+  - Explicit citations and structured summaries.  
+  - Deliberate safety constraint: refusal when no valid context exists.  
+  - Retry and exponential backoff ensure stability under load.  
+
+- **Operational Resilience**  
+  - Embedding cache reduces redundant calls.  
+  - Token counting prevents overflow.  
+  - API-level rate limiting aligns with Azure quotas.  
+  - GitOps workflow guarantees reproducible delivery.  
+
+---
+
+## 🔄 End-to-End Flow
+
+1. Client request enters FastAPI API.  
+2. Embedding module generates vector representation.  
+3. Vector search module queries Azure AI Search.  
+4. Guardrail layer shapes results into grounded prompt.  
+5. Azure OpenAI chat model returns factual, cited completion.  
+6. Response is delivered back to the client.  
+
+---
+
+## 📌 Takeaway
+
+This repository defines the **RAG workload pattern** of the Azure GitOps Platform.  
+It delivers an AI application that is:  
+- **Modular** → clear layers for service, pipeline, and guardrails.  
+- **Governed** → workload logic separated from infra control.  
+- **Production-Aware** → caching, retries, rate limits, token controls.  
+- **Scalable** → repeatable under GitOps delivery across multiple workloads.  
+
+**An AI-ready workload type — governed, resilient, and architected for platform operations.**
