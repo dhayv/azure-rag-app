@@ -11,7 +11,7 @@ Application logic is fully separated from infrastructure governance, ensuring wo
 > A governed workload pattern — resilient, modular, and architected for multi-service scale.
 
 🔗 **System Architecture** → This repository owns the **application layer**.  
-The companion repo [rag-infra](https://github.com/dhayv/rag-infra) governs the **delivery control layer**.  
+The companion repo [rag-infra](https://github.com/dhayv/azure-rag-infra) governs the **delivery control layer**.  
 Together, they define the Azure RAG Platform — a unified, declarative architecture for AI workloads in AKS.  
 
 ---
