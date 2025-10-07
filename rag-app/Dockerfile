@@ -7,12 +7,12 @@ ENV UV_TOOL_BIN_DIR=/usr/local/bin
 ENV PATH="/app/.venv/bin:$PATH"
 
 # Install dependencies only
-COPY pyproject.toml uv.lock ./
+COPY service/pyproject.toml service/uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-install-project --no-dev
 
 # Copy application code
-COPY . /app
+COPY service/ /app
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --locked --no-dev
 
