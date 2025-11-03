@@ -3,7 +3,8 @@
 __pycache__/
 .env
 infra/
-*.ruff_cacheservice/terraform.tfstate
-service/terraform.tfstate.backup
-service/.terraform/
-service/.terraform.lock.hcl
+*.ruff_cache
+rag-app/service/terraform.tfstate
+rag-app/service/terraform.tfstate.backup
+rag-app/service/.terraform/
+rag-app/service/.terraform.lock.hcl
