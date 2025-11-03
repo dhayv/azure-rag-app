@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: rag-api
-  namespace: ragapp
 spec:
   replicas: 3
   selector:
