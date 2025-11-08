@@ -1,74 +1,72 @@
-# Azure RAG AI Application – Workload Layer
+# Azure RAG Platform – Application & Delivery Layers
 
-**Azure | FastAPI | OpenAI | AI Search | Vector Database | GitOps | Platform Architecture**
+**Azure | FastAPI | OpenAI | Azure AI Search | Kubernetes | Argo CD | Terraform | GitOps**
 
-This repository governs the **workload layer** of the Azure RAG Platform.  
-It delivers a **repeatable workload pattern** for Retrieval-Augmented Generation (RAG) services — engineered for production scale with FastAPI, Azure OpenAI, and Azure AI Search.  
+The project has evolved into a **two-layer platform** that now lives side-by-side inside this workspace:
 
-The service is architected for **resilience and governance**: retries, caching, rate limits, and guardrails are built in by design.  
-Application logic is fully separated from infrastructure governance, ensuring workloads remain modular and platform-ready under GitOps control.  
+- `rag-app/` – the FastAPI Retrieval-Augmented Generation workload (code, data utilities, and Argo CD workload manifests).
+- `infra/` – the GitOps control plane that bootstraps AKS, installs Argo CD, and keeps each environment (dev/staging/prod) in sync with Git.
 
-> A governed workload pattern — resilient, modular, and architected for multi-service scale.
-
-🔗 **System Architecture** → This repository owns the **application layer**.  
-The companion repo [rag-infra](https://github.com/dhayv/azure-rag-infra) governs the **delivery control layer**.  
-Together, they define the Azure RAG Platform — a unified, declarative architecture for AI workloads in AKS.  
+Both folders remain independent repositories, but keeping them in a single workspace makes it easy to reason about the full path from data ingestion → API → Kubernetes delivery.
 
 ---
 
-## 🏗️ Architecture Overview
+## 📁 Repository Map
 
-- **Service Layer** → FastAPI application exposing query, health, and admin endpoints.  
-- **Embedding Module** → Generates vector embeddings using Azure OpenAI.  
-- **Vector Store Module** → Azure AI Search indexes and executes similarity queries.  
-- **Guardrail Layer** → Enforces factual grounding, explicit citations, structured summarization, and controlled fallbacks.  
-- **Separation of Concerns** → This repo owns workload logic; [rag-infra] governs deployment and delivery.  
-
----
-
-## 🚀 Core Capabilities
-
-- **Production-Grade RAG Workload**  
-  Orchestrates embeddings, vector search, and completions through modular service classes designed for scale.  
-
-- **Explicit Separation of Concerns**  
-  - Runtime logic (FastAPI, RAGService class).  
-  - Data pipeline (ingestion, indexing, caching).  
-  - Guardrails (prompt template, retries, token trimming).  
-  - Delivery governance fully delegated to [rag-infra].  
-
-- **Guardrails by Design**  
-  - Grounded prompts enforce source fidelity and factual answers.  
-  - Explicit citations and structured summaries.  
-  - Deliberate safety constraint: refusal when no valid context exists.  
-  - Retry and exponential backoff ensure stability under load.  
-
-- **Operational Resilience**  
-  - Embedding cache reduces redundant calls.  
-  - Token counting prevents overflow.  
-  - API-level rate limiting aligns with Azure quotas.  
-  - GitOps workflow guarantees reproducible delivery.  
+| Path | Purpose |
+| --- | --- |
+| `rag-app/service/` | FastAPI app, ingestion scripts, and CLI helpers. |
+| `rag-app/argocd/{dev,staging,prod}` | Environment-specific manifests synced by Argo CD. |
+| `infra/terraform/` | Azure + AKS bootstrap (cluster, namespaces, secrets, workload identity). |
+| `infra/apps/` | App-of-apps definitions that tell Argo CD which environments to track. |
 
 ---
 
-## 🔄 End-to-End Flow
+## 🧠 Application Layer (`rag-app/`)
 
-1. Client request enters FastAPI API.  
-2. Embedding module generates vector representation.  
-3. Vector search module queries Azure AI Search.  
-4. Guardrail layer shapes results into grounded prompt.  
-5. Azure OpenAI chat model returns factual, cited completion.  
-6. Response is delivered back to the client.  
+- **Service Contracts** → `/api/v1/query`, `/health`, `/api/v1/status` served by `service/main.py`.
+- **RAG Orchestration** → `service/rag_service.py` wires embeddings, Azure AI Search vector lookups, conversational guardrails, and retries.
+- **Data Utilities** → `service/create_index.py`, `service/ingest_so.py`, and `service/quick_query.py` manage search indexes, embeddings, and validation queries.
+- **Operational Guardrails** → token trimming via `tiktoken`, exponential backoff with `tenacity`, request throttling in ingestion, and embedding caching (`embeddings_cache.json`).
+
+### Local Development Flow
+1. Copy `rag-app/.env.example` (if provided) or populate `rag-app/.env` with Azure OpenAI + AI Search values.
+2. (Optional) Initialize your search index: `python rag-app/service/create_index.py`.
+3. Ingest data samples: `python rag-app/service/ingest_so.py`.
+4. Run the API: `cd rag-app/service && uvicorn main:app --reload --host 0.0.0.0 --port 8000` or `bash run.sh`.
+5. Hit `http://localhost:8000/api/v1/query` with a JSON payload to validate end-to-end behaviour.
+
+### Build & Publish
+1. `docker build -t <acr-name>.azurecr.io/rag-app:<tag> -f rag-app/Dockerfile rag-app`
+2. `docker push <acr-name>.azurecr.io/rag-app:<tag>`
+3. Update the image tag in `rag-app/argocd/<env>/deployment.yaml` and commit.
 
 ---
 
-## 📌 Takeaway
+## 🚢 Delivery Layer (`infra/`)
 
-This repository defines the **RAG workload pattern** of the Azure GitOps Platform.  
-It delivers an AI application that is:  
-- **Modular** → clear layers for service, pipeline, and guardrails.  
-- **Governed** → workload logic separated from infra control.  
-- **Production-Aware** → caching, retries, rate limits, token controls.  
-- **Scalable** → repeatable under GitOps delivery across multiple workloads.  
+- **Terraform Bootstrap** (`infra/terraform/`):
+  - Provisions AKS, workload identity, and grants AcrPull to the cluster.
+  - Creates namespaces (`ragapp-dev`, `ragapp-staging`, `ragapp-prod`) and injects the `rag-api-env` secret per environment.
+- **Argo CD App-of-Apps** (`infra/apps/`):
+  - `apps/apps.yaml` seeds the root Argo CD application.
+  - Environment apps (`dev-apps1.yaml`, `staging-apps1.yaml`, `prod-apps1.yaml`) track `rag-app/argocd/<env>` folders from the workload repo.
+- **Namespace Bootstrap** (`infra/argo-cdnamespace.yaml`) ensures Argo CD installs into a dedicated namespace.
 
-**An AI-ready workload type — governed, resilient, and architected for platform operations.**
+### GitOps Flow
+1. `cd infra/terraform && terraform init && terraform apply` (fill `terraform.tfvars` with your resource group, AKS, OpenAI, and Search settings).
+2. Point Argo CD at `infra/apps/apps.yaml` (either via `kubectl apply -f` or through the Argo UI). This registers the root app.
+3. Each root app rehydrates the environment-specific Application objects, which then reconcile the manifests under `rag-app/argocd/<env>`.
+4. Image/tag changes in `rag-app/argocd` automatically roll out via Argo CD once merged.
+
+---
+
+## 🔄 End-to-End Lifecycle
+
+1. **Data Plane** – Author content, run ingestion, and validate search relevance locally.
+2. **Service Layer** – Update FastAPI logic, prompts, or dependencies in `rag-app/service`.
+3. **Container** – Build/push a new image referencing the latest code.
+4. **GitOps** – Update the corresponding `rag-app/argocd/<env>` manifest with the new tag.
+5. **Infra** – Ensure Terraform + Argo CD are converged so the workload redeploys automatically.
+
+This structure keeps **workload logic modular** while the **delivery system stays declarative**, allowing each piece to evolve independently but still live together for a complete platform view.
